@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>薄紫カレンダー（当月祝日は濃赤／前後月は薄色・前日特別扱いなし）</title>
+<style>
+  :root{
+    --page-bg:#F6F3FF;
+    --card-bg:#EDE9FF;
+    --title:#3A3A3A;
+    --text:#5A5870;
+
+    /* 当月用（濃色） */
+    --sun:#E34D4D;                  /* 祝日・日曜（当月） */
+    --sat:#6A7EEA;                  /* 土曜（当月） */
+
+    /* 前後月用（薄色） */
+    --sun-soft:rgba(227,77,77,.6);  /* 祝日・日曜（前後月） */
+    --sat-soft:rgba(106,126,234,.6);/* 土曜（前後月） */
+
+    --divider:#DCD6F4;
+    --hover:#F2EEFF;
+    --press:#E8E1FF;
+    --focus:#7B6CE3;
+    --sel:#6B62D1;                  /* 選択日の丸 */
+    --badge-bg:#FFF1F3;
+    --badge-tx:#C53D4D;
+  }
+
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--page-bg); color:var(--text);
+    font:13px/1.5 system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    display:grid;place-items:center;padding:16px;
+  }
+
+  .wrap{width:420px;max-width:96vw}
+  .card{
+    background:linear-gradient(180deg,#F2EEFF 0%,var(--card-bg) 100%);
+    border-radius:20px; box-shadow:0 6px 24px rgba(81,62,160,.12);
+    padding:14px 14px 10px; position:relative; transform-origin:top center;
+  }
+
+  /* 上部ハンドル */
+  .handle{
+    position:absolute; left:50%; transform:translateX(-50%);
+    top:10px; width:120px; height:6px; border-radius:3px; background:#CFC8F6;
+  }
+
+  .header{display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:2px}
+  .title{font-size:18px;font-weight:800;color:var(--title);letter-spacing:.02em}
+  .nav{display:flex;gap:6px;align-items:center}
+  .btn{width:24px;height:24px;border-radius:12px;border:none;background:transparent;display:grid;place-items:center;cursor:pointer;color:#4E4B63;font-size:18px;line-height:1}
+  .pill{height:24px;padding:0 10px;border-radius:12px;border:none;background:#7C86F2;color:#fff;font-weight:700;cursor:pointer}
+  .btn:hover{background:var(--hover)} .btn:active{background:var(--press)}
+  .pill:hover{filter:brightness(1.06)}
+  .btn:focus-visible,.pill:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+  .head,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow{height:20px;display:grid;place-items:center;font-weight:700;opacity:.9;font-size:12px;color:#7E78A0}
+  .dow.sun{color:var(--sun)} .dow.sat{color:var(--sat)}
+
+  /* セル */
+  .cell{position:relative;height:28px;display:grid;place-items:center;background:transparent;user-select:none;font-weight:400;font-size:12px;color:#5A5870}
+  .cell > span{position:relative;z-index:2}
+  .muted{opacity:.38} /* 前後月のデフォルト（薄グレー） */
+  .sun{color:var(--sun)} .sat{color:var(--sat)}
+
+  /* 今日：装飾なし（リングなし） */
+  .today{}
+
+  /* 選択日の円：直径28pxの完全な丸 */
+  .selected::before{
+    content:""; position:absolute; left:50%; top:50%;
+    width:28px; height:28px; transform:translate(-50%,-50%);
+    border-radius:50%; background:var(--sel); z-index:1;
+  }
+  .selected{ color:#fff; }
+
+  /* ——— 色ロジック（優先度を明確化） ——— */
+  /* 当月の祝日は濃い赤（曜日よりも優先） */
+  .cell.hol:not(.muted):not(.selected){
+    color: var(--sun) !important;
+  }
+
+  /* 前後月：祝日・日曜は薄い赤、土曜は薄い青紫（当月は影響しない） */
+  .cell.muted.hol,
+  .cell.muted.sun{
+    opacity: 1 !important;
+    color: var(--sun-soft) !important;
+  }
+  .cell.muted.sat{
+    opacity: 1 !important;
+    color: var(--sat-soft) !important;
+  }
+
+  .footer{margin-top:10px;padding-top:8px;border-top:1px solid var(--divider)}
+  .badge{display:inline-block;background:var(--badge-bg);color:var(--badge-tx);border-radius:999px;padding:2px 8px;font-size:11px;margin-left:8px}
+  .hl{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="card">
+      <div class="handle"></div>
+
+      <div class="header">
+        <div class="nav"><button class="btn" id="prev" aria-label="前月へ">‹</button></div>
+        <div class="title" id="title">YYYY年 M月</div>
+        <div class="nav"><button class="btn" id="next" aria-label="翌月へ">›</button></div>
+      </div>
+
+      <div class="head" id="cal-head"></div>
+      <div class="grid" id="cal-body"></div>
+
+      <div style="display:flex;justify-content:center;margin-top:6px">
+        <button class="pill" id="today" aria-label="今月へ戻る">🗓 今日</button>
+      </div>
+
+      <div class="footer">
+        <strong>今月の祝日</strong><span class="badge">JST</span>
+        <div class="hl" id="holidays">読み込み中…</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // 月曜はじまり
+  const startMonday = true;
+
+  // holidays-jp 公式JSON（CORS可ミラー）
+  const HOLIDAY_API = "https://holidays-jp.github.io/api/v1/date.json";
+  let jpHolidays = {};
+
+  // フォールバック（2025-09 ～ 2027-03 抜粋）
+  const fallbackHolidays = {
+    "2025-09-15":"敬老の日","2025-09-23":"秋分の日",
+    "2025-10-13":"スポーツの日",
+    "2025-11-03":"文化の日","2025-11-23":"勤労感謝の日","2025-11-24":"勤労感謝の日（振替休日）",
+    // 2025-12 なし
+    "2026-01-01":"元日","2026-01-12":"成人の日",
+    "2026-02-11":"建国記念の日","2026-02-23":"天皇誕生日",
+    "2026-03-20":"春分の日",
+    "2026-04-29":"昭和の日",
+    "2026-05-03":"憲法記念日","2026-05-04":"みどりの日","2026-05-05":"こどもの日","2026-05-06":"憲法記念日 振替休日",
+    "2026-07-20":"海の日","2026-08-11":"山の日",
+    "2026-09-21":"敬老の日","2026-09-22":"国民の休日","2026-09-23":"秋分の日",
+    "2026-10-12":"スポーツの日",
+    "2026-11-03":"文化の日","2026-11-23":"勤労感謝の日",
+    // 2026-12 なし
+    "2027-01-01":"元日","2027-01-11":"成人の日",
+    "2027-02-11":"建国記念の日","2027-02-23":"天皇誕生日",
+    "2027-03-21":"春分の日"
+  };
+
+  async function loadHolidays(){
+    try{
+      const res = await fetch(HOLIDAY_API, {mode:'cors', cache:'force-cache'});
+      if(!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      // 欠けをフォールバックで補完（フォールバック優先）
+      jpHolidays = Object.assign({}, data, fallbackHolidays);
+    }catch(e){
+      jpHolidays = fallbackHolidays;
+    }finally{
+      render(); // 祝日反映して再描画
+    }
+  }
+
+  const DOW = ["日","月","火","水","木","金","土"];
+  const head = document.getElementById('cal-head');
+  const body = document.getElementById('cal-body');
+  const titleEl = document.getElementById('title');
+  const hl = document.getElementById('holidays');
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  let current = new Date(today);
+  let selected = new Date(today);
+
+  const pad = n => String(n).padStart(2,'0');
+  const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  function addMonths(d,n){
+    const x = new Date(d), day = x.getDate();
+    x.setDate(1); x.setMonth(x.getMonth()+n);
+    const last = new Date(x.getFullYear(), x.getMonth()+1, 0).getDate();
+    x.setDate(Math.min(day,last));
+    return x;
+  }
+
+  function renderHead(){
+    head.innerHTML = '';
+    (startMonday?[1,2,3,4,5,6,0]:[0,1,2,3,4,5,6]).forEach(w=>{
+      const el = document.createElement('div');
+      el.className = `dow${w===0?' sun':''}${w===6?' sat':''}`;
+      el.textContent = DOW[w];
+      head.appendChild(el);
+    });
+  }
+
+  function makeCell(label, dateObj, isMuted){
+    const w = dateObj.getDay();
+    const el = document.createElement('div');
+    el.className = 'cell';
+    if(isMuted) el.classList.add('muted');
+    if(w===0) el.classList.add('sun');
+    if(w===6) el.classList.add('sat');
+
+    const span = document.createElement('span');
+    span.textContent = label;
+    el.appendChild(span);
+
+    // 選択・今日
+    if(ymd(dateObj)===ymd(selected)) el.classList.add('selected');
+    if(ymd(dateObj)===ymd(today)) el.classList.add('today');
+
+    // 当日が祝日なら hol（当月は濃赤、前後月は下のCSSで薄赤）
+    if (jpHolidays[ymd(dateObj)]) el.classList.add('hol');
+
+    el.onclick = ()=>{
+      selected = new Date(dateObj);
+      if(isMuted) current = new Date(dateObj);
+      render();
+    };
+    return el;
+  }
+
+  function render(){
+    const y = current.getFullYear(), m = current.getMonth();
+    titleEl.textContent = `${y}年 ${m+1}月`;
+
+    body.innerHTML = '';
+    const first = new Date(y,m,1);
+    const last = new Date(y,m+1,0).getDate();
+    let start = first.getDay(); if(startMonday) start = (start===0?6:start-1);
+    const prevLast = new Date(y,m,0).getDate();
+
+    // 前月の埋め
+    for(let i=0;i<start;i++){
+      const d = new Date(y,m, -(start-1-i));
+      body.appendChild(makeCell(prevLast-start+1+i, d, true));
+    }
+    // 当月
+    for(let day=1; day<=last; day++){
+      const d = new Date(y,m,day);
+      body.appendChild(makeCell(day, d, false));
+    }
+    // 次月の埋め
+    const total = start + last;
+    const tail = (7 - (total % 7)) % 7;
+    for(let i=1;i<=tail;i++){
+      const d = new Date(y,m,last+i);
+      body.appendChild(makeCell(i, d, true));
+    }
+
+    // 祝日一覧
+    const ymStr = `${y}-${pad(m+1)}`;
+    if(Object.keys(jpHolidays).length===0){
+      hl.textContent = '読み込み中…';
+    }else{
+      const keys = Object.keys(jpHolidays).filter(k=>k.startsWith(ymStr)).sort();
+      hl.innerHTML = keys.length ? '' : '今月の祝日はありません';
+      keys.forEach(k=>{
+        const [yy,mm,dd] = k.split('-').map(Number);
+        const d = new Date(yy, mm-1, dd);
+        const item = document.createElement('div');
+        item.textContent = `${d.getMonth()+1}月${d.getDate()}日 ${jpHolidays[k]}`;
+        hl.appendChild(item);
+      });
+    }
+  }
+
+  document.getElementById('prev').onclick = ()=>{ current = addMonths(current,-1); render(); };
+  document.getElementById('next').onclick = ()=>{ current = addMonths(current, 1); render(); };
+  document.getElementById('today').onclick = ()=>{ current = new Date(today); selected = new Date(today); render(); };
+  window.addEventListener('keydown', e=>{
+    if(e.key==='ArrowLeft'){ current = addMonths(current,-1); render(); }
+    if(e.key==='ArrowRight'){ current = addMonths(current, 1); render(); }
+  });
+
+  renderHead(); render();
+  loadHolidays(); // 祝日ロード後に再描画
+</script>
+</body>
+</html>
