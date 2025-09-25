@@ -3,19 +3,21 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>薄紫カレンダー（当月祝日は濃赤／前後月は薄色・前日特別扱いなし）</title>
+<title>薄紫カレンダー（外側のみ透明・当月祝日は濃赤／前後月は薄色）</title>
 <style>
   :root{
-    --page-bg:#F6F3FF;
-    --card-bg:#EDE9FF;
+    /* 外側だけ透明。カードは薄紫を維持 */
+    --page-bg: transparent;
+    --card-bg: #EDE9FF;
+
     --title:#3A3A3A;
     --text:#5A5870;
 
-    /* 当月用（濃色） */
+    /* 当月（濃色） */
     --sun:#E34D4D;                  /* 祝日・日曜（当月） */
     --sat:#6A7EEA;                  /* 土曜（当月） */
 
-    /* 前後月用（薄色） */
+    /* 前後月（薄色） */
     --sun-soft:rgba(227,77,77,.6);  /* 祝日・日曜（前後月） */
     --sat-soft:rgba(106,126,234,.6);/* 土曜（前後月） */
 
@@ -30,19 +32,24 @@
 
   html,body{height:100%;margin:0}
   body{
-    background:var(--page-bg); color:var(--text);
+    background: var(--page-bg);
+    color: var(--text);
     font:13px/1.5 system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
-    display:grid;place-items:center;padding:16px;
+    display:grid;place-items:center;
+    padding: 0;
   }
 
   .wrap{width:420px;max-width:96vw}
   .card{
-    background:linear-gradient(180deg,#F2EEFF 0%,var(--card-bg) 100%);
-    border-radius:20px; box-shadow:0 6px 24px rgba(81,62,160,.12);
-    padding:14px 14px 10px; position:relative; transform-origin:top center;
+    background: linear-gradient(180deg, #F2EEFF 0%, var(--card-bg) 100%) !important;
+    border-radius: 20px;
+    box-shadow: 0 6px 24px rgba(81,62,160,.12);
+    padding: 14px 14px 10px;
+    position: relative;
+    transform-origin: top center;
   }
 
-  /* 上部ハンドル */
+  /* 上部ハンドル（必要なら display:none に） */
   .handle{
     position:absolute; left:50%; transform:translateX(-50%);
     top:10px; width:120px; height:6px; border-radius:3px; background:#CFC8F6;
@@ -78,13 +85,12 @@
   }
   .selected{ color:#fff; }
 
-  /* ——— 色ロジック（優先度を明確化） ——— */
-  /* 当月の祝日は濃い赤（曜日よりも優先） */
+  /* 当月の祝日は濃い赤（曜日より優先） */
   .cell.hol:not(.muted):not(.selected){
     color: var(--sun) !important;
   }
 
-  /* 前後月：祝日・日曜は薄い赤、土曜は薄い青紫（当月は影響しない） */
+  /* 前後月：祝日・日曜は薄い赤、土曜は薄い青紫 */
   .cell.muted.hol,
   .cell.muted.sun{
     opacity: 1 !important;
@@ -214,7 +220,7 @@
     if(ymd(dateObj)===ymd(selected)) el.classList.add('selected');
     if(ymd(dateObj)===ymd(today)) el.classList.add('today');
 
-    // 当日が祝日なら hol（当月は濃赤、前後月は下のCSSで薄赤）
+    // 当日が祝日なら hol（当月は濃赤、前後月はCSSで薄赤）
     if (jpHolidays[ymd(dateObj)]) el.classList.add('hol');
 
     el.onclick = ()=>{
